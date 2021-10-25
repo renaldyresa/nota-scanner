@@ -1,0 +1,15 @@
+.btn-icon {
+  border: none;
+  color: #f5eaea;
+  padding: 12px 16px;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.icon-delete {
+  background-color: #ff2910;
+}
+
+.icon-user {
+  background-color: #18b05d;
+}

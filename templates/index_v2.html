@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<!--suppress ALL -->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    <link rel="stylesheet" href="//cdn.webix.com/edge/webix.css" type="text/css">
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/style.css') }}?v=12">
+    <script src="//cdn.webix.com/edge/webix.js" type="text/javascript"></script>
+</head>
+<body>
+
+
+<!--    <script src="{{ url_for('static', filename='js/index.js') }}?v=4"></script>-->
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+<script>
+    class User {
+
+        constructor(name) {
+            this.name = name;
+            this.listItem = [];
+        }
+
+        addItem(item) {
+            this.listItem.push(item);
+        }
+
+        getConvertItem() {
+
+        }
+
+    }
+
+</script>
+
+<script>
+    const LIST_USER = "list_user";
+    const POP_UP_USER = "pop_up_user";
+    const POP_UP_LIST_USER = "pop_up_list_user";
+    const MAIN_APP = "main_app";
+    const dataUser = [];
+</script>
+
+<script>
+
+    const buttonScan = {
+        view: "button", label: "Scan", click: () => {
+            const uploadObj = $$("upload_images");
+            showProgressIcon();
+            uploadObj.send((response) => {
+                if (response.status === "server") {
+                    const listFilenames = [];
+                    uploadObj.files.data.each((obj) => {
+                        listFilenames.push(obj.name);
+                    });
+                    loadData(listFilenames);
+                }
+            });
+        }
+    };
+
+    const uploadImages = {
+        id: "form_images",
+        view: "form",
+        width: 300,
+        rows: [
+            {
+                id: "upload_images",
+                view: "uploader", value: "Upload Images",
+                name: "files",
+                link: "list1",
+                autosend: false,
+                upload: "{{ URL }}/v2/upload"
+            },
+            {
+                view: "list", id: "list1", type: "uploader",
+                autoheight: true, borderless: true
+            },
+            buttonScan
+        ]
+    };
+
+    const buttonAdd = {
+        view: "button",
+        label: "Add",
+        css: "webix_primary",
+        width: 100,
+        click: async () => {
+            const table = $$("table");
+            const rowSelected = table.getSelectedItem();
+            if (rowSelected){
+                let newRank = rowSelected.rank;
+                table.add({}, newRank);
+            } else {
+                table.add({}, 0);
+            }
+            refreshRank();
+
+        }
+    };
+
+    const refreshRank = () => {
+        const table = $$("table");
+        let rank = 1;
+        table.eachRow((row) => {
+            const record = table.getItem(row);
+            record.rank = rank;
+            table.updateItem(row, record);
+            rank++;
+        });
+    };
+
+    const getButtonActionView = (_) => `
+        <div>
+            <i class="btn-icon icon-user fa fa-user btn_user_base"></i>
+            <i class="btn-icon icon-delete fa fa-trash btn_delete_base"></i>
+        </div>
+    `;
+
+    const onDelete = (ev, id, html) => {
+        let table = $$("table");
+        table.remove(id);
+        refreshRank();
+    };
+
+    const onSave = (itemId) => {
+        const windowPopUp = $$(POP_UP_LIST_USER);
+        windowPopUp.hide();
+
+        const listUserWindow = $$("list_user_window");
+        const user = listUserWindow.getSelectedItem();
+
+        const table = $$("table");
+        const record = table.getSelectedItem();
+        const newRecord = { ...record}
+
+        let lotTemp = (record.lot) ? record.lot : 1;
+        const itemPrice = Math.round(record.total / lotTemp);
+        if (record.lot) {
+            if (record.lot - 1 != 0) {
+                record.lot -= 1;
+                record.total = itemPrice * record.lot;
+                table.updateItem(record.id, record);
+            } else {
+                table.remove(record.id);
+            }
+        } else {
+            table.remove(record.id);
+        }
+        newRecord.lot = 1;
+        newRecord.total = itemPrice;
+
+        user.addItem(record);
+        refreshRank();
+        loadItemUser(getUserActive());
+    };
+
+    const onUser = (ev, id, html) => {
+        const windowPopUp = $$(POP_UP_LIST_USER);
+        windowPopUp.show();
+
+        const listUserWindow = $$("list_user_window");
+        listUserWindow.clearAll();
+        for (let user of dataUser) {
+            listUserWindow.add(user);
+        }
+
+    };
+
+    const grid = {
+        id: "table",
+        select: "row",
+        editaction: "dblclick",
+        view: "datatable",
+        columns: [
+            {id: "rank", header: "", width: 50},
+            {id: "item", editor: "text", header: "Item", fillspace: true, footer: {text: "Total:", colspan: 3}},
+            {id: "lot", editor: "text", header: "Count"},
+            {id: "price", editor: "text", header: "Price"},
+            {id: "discount", editor: "text", header: "Discount"},
+            {id: "total", editor: "text", header: "Total", footer: {content: "summColumn"}},
+            {id: "status", editor: "text", header: "Status"},
+            {id: "action", header: "Action", width: 120, template: getButtonActionView}
+        ],
+        editable: true,
+        footer: true,
+        onClick: {
+            btn_delete_base: onDelete,
+            btn_user_base: onUser
+        }
+    };
+
+    const loadData = (listFilenames) => {
+        webix.ajax().post("{{ URL }}/v2/convert", {filenames: JSON.stringify(listFilenames)}).then((data) => {
+            let responseData = data.json();
+            let table = $$('table');
+            table.clearAll();
+            let rank = 1;
+            for (let item of responseData) {
+                item.rank = rank;
+                table.add(item);
+                rank++;
+            }
+            hideProgressIcon();
+        });
+    };
+
+
+    const formUser = {
+        id: "form_user",
+        view: "form",
+        borderless: true,
+        elements: [
+            {view: "text", label: 'Name', name: "name"},
+            {view: "button", value: "Submit", click: () => onSubmitForm()}
+        ],
+        elementsConfig: {
+            labelPosition: "bottom",
+        }
+    };
+
+    const onSubmitForm = () => {
+        const form = $$("form_user");
+        const user = new User(form.getValues().name);
+        $$(LIST_USER).add(user);
+        dataUser.push(user);
+        $$(POP_UP_USER).hide();
+    };
+
+    const showForm = (winId, node) => {
+        $$(winId).getBody().clear();
+        $$(winId).show(node);
+        $$(winId).getBody().focus();
+    }
+
+    const users = {
+        id: LIST_USER,
+        select: true,
+        view: "list",
+        template: "#name#",
+    };
+
+    const toolbarUser = {
+        view: "toolbar",
+        height: 50,
+        cols: [
+            {view: "label", label: "User", fillspace: true},
+            {
+                view: "button", value: "Add User", width: 100, click: () => {
+                    showForm(POP_UP_USER, this)
+                }
+            },
+        ]
+    };
+
+    const tableUser = {
+        id: "table_user",
+        view: "datatable",
+        editaction: "dblclick",
+        editable: true,
+        footer: true,
+        columns: [
+            {id: "nameItem", header: "Item", fillspace: true, footer: {text: "Total:", colspan: 2}},
+            {id: "lot", header: "Lot"},
+            {id: "total", editor:"text", header: "Total Price", footer: {content: "summColumn"}}
+        ]
+    };
+
+    const layoutUsers = {
+        width: 400,
+        rows: [
+            toolbarUser,
+            users,
+            tableUser
+        ]
+    };
+
+    const loadItemUser = (user) => {
+        if (user) {
+            const tableUser = $$("table_user");
+            tableUser.clearAll();
+            for (let item of user.listItem) {
+                let nameItem = item.item;
+                let lot = 1;
+                let total = item.total;
+                tableUser.add({nameItem, lot, total});
+            }
+        }
+    };
+
+    const showProgressIcon = () => {
+        $$(MAIN_APP).disable();
+        $$(MAIN_APP).showProgress({
+            type: "icon",
+            delay: 10000,
+            hide: true
+        });
+    };
+
+    const hideProgressIcon = () => {
+        $$(MAIN_APP).hideProgress();
+        $$(MAIN_APP).enable();
+    };
+
+    const getUserActive = () => $$(LIST_USER).getSelectedItem();
+
+
+    webix.ready(function () {
+
+        webix.ui({
+            view: "popup",
+            id: POP_UP_USER,
+            width: 300,
+            head: false,
+            body: webix.copy(formUser)
+        });
+
+        webix.ui({
+            id: POP_UP_LIST_USER,
+            view: "window",
+            width: 400,
+            height: 400,
+            position: "center",
+            modal: true,
+            close: true,
+            head: "List User",
+            body: {
+                rows: [
+                    {
+                        id: "list_user_window",
+                        select: true,
+                        view: "list",
+                        template: "#name#",
+                    },
+                    {
+                        cols: [
+                            {fillspace: true},
+                            {
+                                view: "button",
+                                label: "Save",
+                                width: 100,
+                                click: onSave
+                            }
+                        ]
+                    }
+                ]
+            }
+        });
+
+
+        webix.ui({
+            id: MAIN_APP,
+            padding: 15,
+            cols: [
+                uploadImages,
+                {
+                    rows: [
+                        {
+                            cols: [
+                                buttonAdd, {}
+                            ]
+                        },
+                        grid
+                    ]
+                },
+                layoutUsers
+            ]
+        });
+
+        $$(LIST_USER).attachEvent("onAfterSelect", function (id) {
+            const user = this.getItem(id);
+            loadItemUser(user);
+        });
+
+        webix.extend($$(MAIN_APP), webix.ProgressBar);
+
+    });
+</script>
+</body>
+</html>
